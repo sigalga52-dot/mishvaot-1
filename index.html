@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>דף עבודה במשוואות</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <!-- Lucide Icons -->
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700;800&family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- KaTeX for Math Rendering -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+  <style>
+    :root {
+      --ink: #123b58;
+      --blue: #136f9b;
+      --green: #4d8f36;
+      --red: #d62828;
+      --paper: #fffdf7;
+      --line: #d8e3e7;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      width: 100%;
+      min-height: 100vh;
+      font-family: "Rubik", "Work Sans", sans-serif;
+      color: var(--ink);
+      background: #eaf2f3;
+    }
+
+    .app-shell {
+      width: 100%;
+      min-height: 100vh;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+    }
+
+    .notebook-lines {
+      position: absolute;
+      inset: 0;
+      opacity: .25;
+      pointer-events: none;
+      background-image: repeating-linear-gradient(
+        0deg,
+        transparent 0,
+        transparent 31px,
+        rgba(81, 146, 169, .18) 32px,
+        transparent 33px
+      );
+    }
+
+    .worksheet {
+      position: relative;
+      width: min(100% - 2rem, 880px);
+      margin: 0 auto;
+      padding: 1.5rem 0 3rem;
+    }
+
+    .paper-card {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(22, 86, 110, .14);
+      background: rgba(255, 253, 247, .94);
+      box-shadow: 0 18px 50px rgba(19, 72, 90, .14);
+    }
+
+    .paper-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 6px;
+      height: 100%;
+      background: linear-gradient(to bottom, #f43f5e, #8b5cf6);
+    }
+
+    .equation-container {
+      direction: ltr;
+      font-size: 1.75rem;
+      margin: 2.5rem 0;
+      text-align: center;
+    }
+
+    .view { display: none; }
+    .view.is-active { display: block; animation: rise .42s ease both; }
+
+    .question-card { display: none; }
+    .question-card.is-active { display: block; animation: rise .4s ease both; }
+
+    .feedback-layer {
+      display: none;
+      position: fixed;
+      z-index: 30;
+      inset: 0;
+      padding: 1rem;
+      background: rgba(10, 45, 61, .56);
+      align-items: center;
+      justify-content: center;
+    }
+    .feedback-layer.is-active { display: flex; animation: fadeIn .2s ease both; }
+
+    .feedback-panel {
+      width: min(100%, 610px);
+      max-height: calc(100vh - 2rem);
+      overflow-y: auto;
+      border-radius: 1.5rem;
+      background: #fffdf7;
+      box-shadow: 0 22px 65px rgba(3, 30, 42, .35);
+    }
+
+    .tip-sheet {
+      border: 1px solid #dae9e4;
+      border-radius: 1rem;
+      background: #fbfffc;
+      padding: 1rem 1.25rem;
+    }
+
+    .tip-item {
+      display: flex;
+      gap: .65rem;
+      align-items: flex-start;
+      margin-top: .75rem;
+      font-weight: 600;
+      line-height: 1.55;
+    }
+    .tip-item:first-child { margin-top: 0; }
+
+    .progress-dot {
+      height: 10px;
+      flex: 1;
+      max-width: 70px;
+      border-radius: 100px;
+      background: #e2e8f0;
+      transition: background .25s ease, transform .25s ease;
+    }
+    .progress-dot.is-done { background: #10b981; }
+    .progress-dot.is-current { background: #ec4899; transform: scaleY(1.3); }
+
+    .input-answer {
+      direction: ltr;
+      text-align: center;
+      font-family: "Work Sans", sans-serif;
+      font-size: 1.35rem;
+      font-weight: 700;
+      border: 2px solid #bdd3d8;
+      outline: none;
+      transition: .2s ease;
+    }
+    .input-answer:focus {
+      border-color: #ec4899;
+      box-shadow: 0 0 0 4px rgba(236,72,153,.14);
+    }
+
+    .action-button {
+      transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+      color: white;
+    }
+    .action-button:hover { transform: translateY(-2px); filter: brightness(.98); box-shadow: 0 9px 18px rgba(0, 0, 0, .15); }
+    .action-button:focus-visible, input:focus-visible { outline: 3px solid #f3b74f; outline-offset: 3px; }
+
+    .confetti {
+      position: fixed;
+      z-index: 45;
+      top: -15px;
+      width: 10px;
+      height: 18px;
+      border-radius: 2px;
+      opacity: 0;
+      pointer-events: none;
+      animation: fall 1.65s cubic-bezier(.18,.72,.36,1) forwards;
+    }
+
+    .summary-row {
+      display: grid;
+      grid-template-columns: 48px 1fr auto;
+      align-items: center;
+      gap: .8rem;
+      border-bottom: 1px solid #deebeb;
+      padding: .8rem .1rem;
+    }
+    .summary-row:last-child { border-bottom: 0; }
+    
+    .solution-content { direction: ltr; }
+    .solution-step { margin-bottom: 0.5rem; }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fall {
+      0% { opacity: 1; transform: translate3d(0,-15px,0) rotate(0); }
+      100% { opacity: 0; transform: translate3d(var(--drift), calc(100vh + 40px), 0) rotate(720deg); }
+    }
+
+    @media (max-width: 560px) {
+      .worksheet { width: min(100% - 1rem, 880px); padding-top: .75rem; }
+      .paper-card, .feedback-panel { border-radius: 1.15rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="notebook-lines"></div>
+    <header class="relative z-10 w-full px-4 pt-5">
+      <div class="mx-auto flex w-full max-w-[880px] items-center justify-between gap-4 rounded-2xl bg-white/80 px-5 py-4 shadow-sm backdrop-blur-md border border-white/50">
+        <div>
+          <p class="text-sm font-bold tracking-wide text-purple-600">מתמטיקה - חטיבת ביניים</p>
+          <h1 class="mt-1 text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500">משוואות ממעלה ראשונה</h1>
+        </div>
+        <div class="rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 p-2 text-pink-600 shadow-sm" aria-hidden="true">
+          <i data-lucide="pen-tool" style="width:28px;height:28px"></i>
+        </div>
+      </div>
+    </header>
+
+    <main class="relative z-10 w-full">
+      <div class="worksheet">
+        <!-- Start View -->
+        <section id="start-view" class="view is-active" aria-labelledby="welcome-title">
+          <div class="paper-card rounded-3xl px-6 py-9 sm:px-12 border-0 shadow-xl shadow-purple-900/5">
+            <div class="mx-auto max-w-xl text-center">
+              <div class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-100 to-yellow-100 text-orange-500 shadow-sm" aria-hidden="true">
+                <i data-lucide="sigma" style="width:34px;height:34px"></i>
+              </div>
+              <h2 id="welcome-title" class="text-3xl font-extrabold text-slate-800">ברוכים הבאים לדף העבודה!</h2>
+              <p class="mt-4 text-lg leading-7 text-slate-600">לפניכם 6 תרגילי משוואות. פתרו אותם ומצאו את ערכו של $x$.<br>לכל תרגיל יש לכם שני ניסיונות. בהצלחה!</p>
+              
+              <form id="start-form" class="mx-auto mt-8 max-w-md">
+                <label class="mb-2 block text-right font-bold text-slate-700" for="student-name">מה השם שלכם?</label>
+                <input id="student-name" class="w-full rounded-xl border-2 border-purple-100 bg-purple-50/30 px-4 py-3 text-right text-lg outline-none transition focus:border-pink-400 focus:bg-white" type="text" autocomplete="name" required placeholder="הקלידו את השם כאן..."> 
+                <button class="action-button mt-4 w-full rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 px-5 py-3 text-lg font-bold shadow-md shadow-pink-500/30" type="submit">בואו נתחיל!</button>
+                <p id="name-error" class="mt-3 hidden text-sm font-semibold text-rose-500" aria-live="polite"></p>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <!-- Work View (Dynamic Content) -->
+        <section id="work-view" class="view" aria-label="תרגילי משוואות">
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3 px-1">
+            <p id="student-greeting" class="text-lg font-bold text-purple-900" aria-live="polite"></p>
+            <div class="flex items-center gap-2 rounded-full bg-white/70 px-4 py-1.5 shadow-sm backdrop-blur-sm" aria-label="התקדמות בתרגילים">
+              <span class="text-sm font-semibold text-slate-600">התקדמות:</span> 
+              <span id="progress-count" class="font-bold text-pink-600" aria-live="polite"></span>
+            </div>
+          </div>
+          <div class="mb-6 flex gap-2" id="progress-dots-container" aria-hidden="true">
+            <!-- Dots will be generated here -->
+          </div>
+          
+          <div id="questions-container">
+            <!-- Questions will be dynamically inserted here -->
+          </div>
+        </section>
+
+        <!-- Summary View -->
+        <section id="summary-view" class="view" aria-labelledby="summary-title">
+          <div class="paper-card rounded-3xl px-6 py-9 sm:px-12 border-0 shadow-xl shadow-purple-900/5">
+            
+            <!-- Red Notification Box (Desktop Floating Square) -->
+            <div class="hidden md:flex absolute left-6 top-8 bg-red-600 text-white p-5 rounded-2xl shadow-xl flex-col items-center justify-center text-center gap-2 w-36 aspect-square z-20 transform -rotate-6 border-2 border-red-200 transition-transform hover:-rotate-3 hover:scale-105">
+              <i data-lucide="camera" style="width:36px;height:36px"></i>
+              <span class="font-extrabold text-sm leading-tight">יש לשלוח מסך זה למורה</span>
+            </div>
+
+            <div class="text-center">
+              <div class="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-yellow-300 to-orange-400 text-white shadow-lg shadow-orange-300/50" aria-hidden="true">
+                <i data-lucide="award" style="width:40px;height:40px"></i>
+              </div>
+              <h2 id="summary-title" class="text-3xl font-extrabold text-slate-800">כל הכבוד, סיימת!</h2>
+              <p class="mt-3 text-lg text-slate-600">הנה סיכום הביצועים שלך בתרגול הנוכחי.</p>
+            </div>
+            
+            <div class="mt-7 grid gap-3 sm:grid-cols-3">
+              <div class="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 p-4 border border-indigo-100">
+                <p class="text-sm font-bold text-indigo-400">שם התלמיד/ה</p>
+                <p id="summary-name" class="mt-1 text-lg font-bold text-indigo-900" aria-live="polite"></p>
+              </div>
+              <div class="rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 p-4 border border-purple-100">
+                <p class="text-sm font-bold text-purple-400">שעת התחלה</p>
+                <p id="summary-start" class="mt-1 text-lg font-bold text-purple-900" aria-live="polite"></p>
+              </div>
+              <div class="rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 p-4 border border-emerald-100">
+                <p class="text-sm font-bold text-emerald-500">זמן עבודה כולל</p>
+                <p id="summary-duration" class="mt-1 text-lg font-bold text-emerald-900" aria-live="polite"></p>
+              </div>
+            </div>
+            
+            <div id="summary-score-container" class="mt-6 rounded-2xl bg-slate-50 py-4 px-6 text-center text-xl font-extrabold text-slate-800 border border-slate-200">
+              <!-- Score message will be injected here -->
+            </div>
+
+            <section class="mt-8" aria-labelledby="result-list-title">
+              <h3 id="result-list-title" class="mb-3 text-xl font-extrabold text-slate-800">פירוט התשובות:</h3>
+              <div id="result-list" class="rounded-2xl border border-slate-100 bg-white/50 px-4 shadow-inner"></div>
+            </section>
+            
+            <!-- Red Notification Box (Mobile Block) -->
+            <div class="md:hidden mt-8 bg-red-600 text-white p-4 rounded-2xl shadow-lg flex items-center justify-center gap-3 border-2 border-red-200 text-center">
+              <i data-lucide="camera" style="width:28px;height:28px" class="shrink-0"></i>
+              <span class="font-extrabold text-lg leading-tight">יש לשלוח מסך זה למורה</span>
+            </div>
+            
+            <button id="restart-button" class="action-button mx-auto mt-8 block rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 px-8 py-3 text-lg font-bold shadow-md shadow-indigo-500/30" type="button">תרגול מחדש</button>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Success Modal -->
+  <div id="success-modal" class="feedback-layer" role="dialog" aria-modal="true" aria-labelledby="success-title">
+    <div class="feedback-panel px-7 py-9 text-center">
+      <div class="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-emerald-500 text-white shadow-lg shadow-emerald-400/40" aria-hidden="true">
+        <i data-lucide="trophy" style="width:40px;height:40px"></i>
+      </div>
+      <h2 id="success-title" class="text-3xl font-extrabold text-emerald-600">תשובה נכונה!</h2>
+      <p id="success-message" class="mt-3 text-xl font-medium text-emerald-700" aria-live="polite"></p>
+      <button id="success-next" class="action-button mt-7 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-8 py-3 text-lg font-bold shadow-md shadow-emerald-500/30" type="button">המשיכו לתרגיל הבא</button>
+    </div>
+  </div>
+
+  <!-- Retry Modal -->
+  <div id="retry-modal" class="feedback-layer" role="dialog" aria-modal="true" aria-labelledby="retry-title">
+    <div class="feedback-panel px-6 py-7 sm:px-8">
+      <div class="flex items-start gap-3">
+        <div class="mt-1 rounded-xl bg-gradient-to-br from-orange-400 to-rose-500 p-3 text-white shadow-md shadow-rose-400/30" aria-hidden="true">
+          <i data-lucide="rotate-ccw" style="width:28px;height:28px"></i>
+        </div>
+        <div>
+          <h2 id="retry-title" class="text-2xl font-extrabold text-rose-600">אופס, תשובה שגויה</h2>
+          <p class="mt-2 text-lg leading-7 text-slate-600">לא נורא! יש לך הזדמנות שנייה. כדאי לעבור על הטיפים לפני שמנסים שוב:</p>
+        </div>
+      </div>
+      <div class="tip-sheet mt-6 border-purple-100 bg-purple-50/50">
+        <div class="tip-item text-purple-700">
+          <span class="font-black">1.</span><span>האם העברת אגפים נכון? (פלוס הופך למינוס ולהיפך).</span>
+        </div>
+        <div class="tip-item text-pink-600">
+          <span class="font-black">2.</span><span>בדקו אם כינסתם איברים דומים בזהירות.</span>
+        </div>
+        <div class="tip-item text-indigo-600">
+          <span class="font-black">3.</span><span>האם חילקתם במקדם של $x$ בסוף התהליך?</span>
+        </div>
+        <div class="tip-item text-rose-600">
+          <span class="font-black">4.</span><span>שימו לב לסימנים - מינוס כפול מינוס נותן פלוס.</span>
+        </div>
+      </div>
+      <button id="retry-return" class="action-button mt-6 w-full rounded-xl bg-gradient-to-r from-orange-400 to-rose-500 px-5 py-3 text-lg font-bold shadow-md shadow-rose-500/30" type="button">אני רוצה לנסות שוב</button>
+    </div>
+  </div>
+
+  <!-- Solution Modal -->
+  <div id="solution-modal" class="feedback-layer" role="dialog" aria-modal="true" aria-labelledby="solution-title">
+    <div class="feedback-panel px-7 py-8">
+      <div class="flex items-start gap-3">
+        <div class="mt-1 rounded-xl bg-gradient-to-br from-rose-500 to-red-600 p-3 text-white shadow-md shadow-red-500/30" aria-hidden="true">
+          <i data-lucide="lightbulb" style="width:28px;height:28px"></i>
+        </div>
+        <div>
+          <h2 id="solution-title" class="text-2xl font-extrabold text-red-600">התשובה עדיין שגויה</h2>
+          <p class="mt-2 text-lg leading-7 text-slate-600">לא נורא, מטעויות לומדים! הנה דרך הפתרון המלאה:</p>
+        </div>
+      </div>
+      <div class="mt-6" id="solution-content-container">
+        <!-- Dynamic solution will be injected here -->
+      </div>
+      <button id="solution-next" class="action-button mt-7 w-full rounded-xl bg-gradient-to-r from-slate-700 to-slate-900 px-5 py-3 text-lg font-bold shadow-md" type="button">המשיכו לתרגיל הבא</button>
+    </div>
+  </div>
+
+  <script>
+    // --- מחולל משוואות דינמי ---
+    // פונקציה לעיצוב איברים אלגבריים (מטפלת בסימנים פלוס/מינוס והשמטת מקדם 1)
+    function fmt(terms) {
+      let str = "";
+      for (let i = 0; i < terms.length; i++) {
+        let c = terms[i].c;
+        let v = terms[i].v;
+        if (c === 0) continue;
+        let val = "";
+        if (v === "") val = Math.abs(c).toString();
+        else val = Math.abs(c) === 1 ? v : Math.abs(c) + v;
+        if (str === "") str += (c < 0 ? "-" : "") + val;
+        else str += (c < 0 ? " - " : " + ") + val;
+      }
+      return str === "" ? "0" : str;
+    }
+
+    // הגרלת מספר אקראי ללא מספרים אסורים (כמו 0)
+    function rnd(min, max, avoid = [0]) {
+      let val;
+      do { val = Math.floor(Math.random() * (max - min + 1)) + min; } 
+      while (avoid.includes(val));
+      return val;
+    }
+
+    // תבנית 1: A(Bx + C) + D(Ex + F) = G(Hx + I)
+    function genEqType1() {
+      let A, B, C, D, E, F, G, H, I, x, cX_L, cN_L, cX_R, cN_R, divisor, remainder;
+      do {
+        A = rnd(-7, 7, [0, 1]); B = rnd(-5, 5, [0]); C = rnd(-9, 9, [0]);
+        D = rnd(-7, 7, [0, 1]); E = rnd(-5, 5, [0]); F = rnd(-9, 9, [0]);
+        G = rnd(-7, 7, [0, 1]); H = rnd(-5, 5, [0]); I = rnd(-9, 9, [0]);
+        cX_L = A*B + D*E; cN_L = A*C + D*F;
+        cX_R = G*H;       cN_R = G*I;
+        divisor = cX_L - cX_R; remainder = cN_R - cN_L;
+      } while (divisor === 0 || remainder % divisor !== 0 || Math.abs(remainder/divisor) > 12 || cX_L === 0 || cX_R === 0);
+      x = remainder / divisor;
+      let eq = `${A}(${fmt([{c:B,v:'x'},{c:C,v:''}])}) ${D>0?'+':'-'} ${Math.abs(D)}(${fmt([{c:E,v:'x'},{c:F,v:''}])}) = ${G}(${fmt([{c:H,v:'x'},{c:I,v:''}])})`;
+      let st1 = `${fmt([{c:A*B,v:'x'},{c:A*C,v:''},{c:D*E,v:'x'},{c:D*F,v:''}])} = ${fmt([{c:G*H,v:'x'},{c:G*I,v:''}])}`;
+      let st2 = `${fmt([{c:cX_L,v:'x'},{c:cN_L,v:''}])} = ${fmt([{c:cX_R,v:'x'},{c:cN_R,v:''}])}`;
+      let st3 = `${fmt([{c:cX_L,v:'x'},{c:-cX_R,v:'x'}])} = ${fmt([{c:cN_R,v:''},{c:-cN_L,v:''}])}`;
+      let st4 = `${fmt([{c:divisor,v:'x'}])} = ${remainder}`;
+      return { equation: eq, answer: x, steps: [eq, st1, st2, st3, st4] };
+    }
+
+    // תבנית 2: A(Bx + C) - D(Ex + F) = Jx + K
+    function genEqType2() {
+      let A, B, C, D, E, F, J, K, x, cX_L, cN_L, cX_R, cN_R, divisor, remainder;
+      do {
+        A = rnd(-7, 7, [0, 1]); B = rnd(-5, 5, [0]); C = rnd(-9, 9, [0]);
+        D = rnd(2, 7, [0, 1]);  E = rnd(-5, 5, [0]); F = rnd(-9, 9, [0]); 
+        J = rnd(-8, 8, [0]);    K = rnd(-15, 15, [0]);
+        cX_L = A*B - D*E; cN_L = A*C - D*F;
+        cX_R = J;         cN_R = K;
+        divisor = cX_L - cX_R; remainder = cN_R - cN_L;
+      } while (divisor === 0 || remainder % divisor !== 0 || Math.abs(remainder/divisor) > 12 || cX_L === 0);
+      x = remainder / divisor;
+      let eq = `${A}(${fmt([{c:B,v:'x'},{c:C,v:''}])}) - ${D}(${fmt([{c:E,v:'x'},{c:F,v:''}])}) = ${fmt([{c:J,v:'x'},{c:K,v:''}])}`;
+      let st1 = `${fmt([{c:A*B,v:'x'},{c:A*C,v:''},{c:-D*E,v:'x'},{c:-D*F,v:''}])} = ${fmt([{c:J,v:'x'},{c:K,v:''}])}`;
+      let st2 = `${fmt([{c:cX_L,v:'x'},{c:cN_L,v:''}])} = ${fmt([{c:J,v:'x'},{c:K,v:''}])}`;
+      let st3 = `${fmt([{c:cX_L,v:'x'},{c:-J,v:'x'}])} = ${fmt([{c:K,v:''},{c:-cN_L,v:''}])}`;
+      let st4 = `${fmt([{c:divisor,v:'x'}])} = ${remainder}`;
+      return { equation: eq, answer: x, steps: [eq, st1, st2, st3, st4] };
+    }
+
+    // תבנית 3: A(Bx + C) + J = G(Hx + I) - Kx
+    function genEqType3() {
+      let A, B, C, G, H, I, J, K, x, cX_L, cN_L, cX_R, cN_R, divisor, remainder;
+      do {
+        A = rnd(-7, 7, [0, 1]); B = rnd(-5, 5, [0]); C = rnd(-9, 9, [0]);
+        G = rnd(-7, 7, [0, 1]); H = rnd(-5, 5, [0]); I = rnd(-9, 9, [0]);
+        J = rnd(-15, 15, [0]);  K = rnd(-8, 8, [0]);
+        cX_L = A*B;       cN_L = A*C + J;
+        cX_R = G*H - K;   cN_R = G*I;
+        divisor = cX_L - cX_R; remainder = cN_R - cN_L;
+      } while (divisor === 0 || remainder % divisor !== 0 || Math.abs(remainder/divisor) > 12 || cX_L === 0 || cX_R === 0);
+      x = remainder / divisor;
+      let eq = `${A}(${fmt([{c:B,v:'x'},{c:C,v:''}])}) ${J>0?'+':'-'} ${Math.abs(J)} = ${G}(${fmt([{c:H,v:'x'},{c:I,v:''}])}) ${K>0?'-':'+'} ${Math.abs(K)}x`;
+      let st1 = `${fmt([{c:A*B,v:'x'},{c:A*C,v:''},{c:J,v:''}])} = ${fmt([{c:G*H,v:'x'},{c:G*I,v:''},{c:-K,v:'x'}])}`;
+      let st2 = `${fmt([{c:cX_L,v:'x'},{c:cN_L,v:''}])} = ${fmt([{c:cX_R,v:'x'},{c:cN_R,v:''}])}`;
+      let st3 = `${fmt([{c:cX_L,v:'x'},{c:-cX_R,v:'x'}])} = ${fmt([{c:cN_R,v:''},{c:-cN_L,v:''}])}`;
+      let st4 = `${fmt([{c:divisor,v:'x'}])} = ${remainder}`;
+      return { equation: eq, answer: x, steps: [eq, st1, st2, st3, st4] };
+    }
+
+    // State Variables
+    let exercises = [];
+    let currentQuestion = 0;
+    let studentName = "";
+    let startTime = null;
+    let awaitingQuestion = 0;
+
+    const views = {
+      start: document.getElementById("start-view"),
+      work: document.getElementById("work-view"),
+      summary: document.getElementById("summary-view")
+    };
+
+    function initApp() {
+      lucide.createIcons();
+      setupExercises();
+      renderQuestions();
+      renderKaTeX();
+    }
+
+    function setupExercises() {
+      const funcs = [genEqType1, genEqType2, genEqType3];
+      exercises = [];
+      
+      for(let i = 0; i < 6; i++) {
+        // בחירת תבנית אקראית מתוך ה-3
+        const func = funcs[Math.floor(Math.random() * funcs.length)];
+        const generated = func();
+        
+        // סינון שלבים כפולים (למשל אם כינוס איברים לא שינה את המשוואה)
+        const cleanSteps = generated.steps.filter((step, index, arr) => index === 0 || step !== arr[index - 1]);
+        
+        exercises.push({
+          equation: generated.equation,
+          answer: generated.answer,
+          steps: cleanSteps,
+          result: "גביע",
+          icon: "🏆",
+          first: true
+        });
+      }
+    }
+
+    function renderQuestions() {
+      const container = document.getElementById('questions-container');
+      const dotsContainer = document.getElementById('progress-dots-container');
+      container.innerHTML = '';
+      dotsContainer.innerHTML = '';
+
+      exercises.forEach((q, index) => {
+        // Add Progress Dots
+        const dot = document.createElement('span');
+        dot.className = 'progress-dot';
+        dotsContainer.appendChild(dot);
+
+        // Add Question HTML
+        const article = document.createElement('article');
+        article.id = `question-${index}`;
+        article.className = 'question-card';
+        article.innerHTML = `
+          <div class="paper-card rounded-3xl px-6 py-9 sm:px-12 border-0 shadow-xl shadow-purple-900/5">
+            <p class="mb-7 inline-flex rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white px-5 py-1.5 text-sm font-bold shadow-sm">שאלה ${index + 1} מתוך ${exercises.length}</p>
+            <h2 class="text-2xl font-extrabold text-slate-800">מצאו את ערכו של $x$ במשוואה הבאה:</h2>
+            <div class="equation-container font-bold text-center text-purple-900 bg-purple-50/50 py-6 rounded-2xl mt-6 border border-purple-100">
+              $$${q.equation}$$
+            </div>
+            <form class="answer-form mx-auto max-w-md mt-8" data-question="${index}">
+              <label class="mb-2 block text-center font-bold text-slate-700" for="answer-${index}">התשובה שלכם ($x=$):</label> 
+              <input id="answer-${index}" class="input-answer w-full rounded-xl bg-purple-50/30 border-2 border-purple-100 px-4 py-3 text-lg transition focus:bg-white" autocomplete="off" dir="ltr" required placeholder="הקלידו מספר כאן...">
+              <p class="form-error mt-3 hidden text-center text-sm font-bold text-rose-500" aria-live="polite"></p>
+              <button class="action-button mt-5 w-full rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 px-5 py-3 text-lg font-bold shadow-md shadow-indigo-500/30" type="submit">בדיקה</button>
+            </form>
+          </div>
+        `;
+        container.appendChild(article);
+      });
+
+      // Bind form events for newly created forms
+      document.querySelectorAll(".answer-form").forEach(form => form.addEventListener("submit", handleAnswer));
+    }
+
+    function renderKaTeX() {
+      // Use KaTeX auto-render extension to parse math inside the DOM
+      renderMathInElement(document.body, {
+        delimiters: [
+          {left: '$$', right: '$$', display: true},
+          {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false
+      });
+    }
+
+    function showView(name) {
+      Object.values(views).forEach(view => view.classList.remove("is-active"));
+      views[name].classList.add("is-active");
+    }
+
+    function formatTime(date) {
+      return new Intl.DateTimeFormat("he-IL", { hour: "2-digit", minute: "2-digit" }).format(date);
+    }
+
+    function formatDuration(milliseconds) {
+      const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return minutes ? `${minutes} דקות ו־${seconds} שניות` : `${seconds} שניות`;
+    }
+
+    // Handles both standard decimals and fractions (e.g. "10/3")
+    function parseUserAnswer(value) {
+      const cleaned = value.trim().replace(/,/g, ".").replace(/[xX]\s*=/g, "").replace(/\s/g, "");
+      if (cleaned.includes('/')) {
+        const parts = cleaned.split('/');
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && Number(parts[1]) !== 0) {
+          return Number(parts[0]) / Number(parts[1]);
+        }
+      }
+      return Number(cleaned);
+    }
+
+    function updateProgress() {
+      document.getElementById("progress-count").textContent = `${currentQuestion + 1} / ${exercises.length}`;
+      document.querySelectorAll(".progress-dot").forEach((dot, index) => {
+        dot.classList.toggle("is-done", index < currentQuestion);
+        dot.classList.toggle("is-current", index === currentQuestion);
+      });
+    }
+
+    function showQuestion(index) {
+      currentQuestion = index;
+      document.querySelectorAll(".question-card").forEach(card => card.classList.remove("is-active"));
+      const question = document.getElementById(`question-${index}`);
+      question.classList.add("is-active");
+      updateProgress();
+      
+      const input = question.querySelector("input");
+      input.value = "";
+      question.querySelector(".form-error").classList.add("hidden");
+      setTimeout(() => input.focus(), 100);
+    }
+
+    function setModal(id, isOpen) {
+      document.getElementById(id).classList.toggle("is-active", isOpen);
+    }
+
+    function celebrate() {
+      const colors = ["#f2b544", "#4d9a47", "#136f9b", "#e55a3b", "#744aa3"];
+      for (let i = 0; i < 72; i++) {
+        const piece = document.createElement("span");
+        piece.className = "confetti";
+        piece.style.right = `${Math.random() * 100}%`;
+        piece.style.background = colors[i % colors.length];
+        piece.style.setProperty("--drift", `${(Math.random() - .5) * 260}px`);
+        piece.style.animationDelay = `${Math.random() * .32}s`;
+        document.body.appendChild(piece);
+        setTimeout(() => piece.remove(), 2200);
+      }
+    }
+
+    function showSolution(index) {
+      const solContainer = document.getElementById('solution-content-container');
+      const q = exercises[index];
+      
+      let stepsHTML = q.steps.map(step => `<div class="solution-step" dir="ltr">$$${step}$$</div>`).join('');
+      
+      solContainer.innerHTML = `
+        <div class="rounded-2xl bg-slate-50 border border-slate-100 p-5 text-center font-semibold leading-8 text-lg text-slate-800">
+          ${stepsHTML}
+        </div>
+        <p class="mt-6 text-center font-extrabold text-2xl text-rose-600">התשובה הסופית היא: <span dir="ltr" class="inline-block">$$x = ${q.answer}$$</span></p>
+      `;
+      renderKaTeX(); // Re-render math in the modal
+      setModal("solution-modal", true);
+    }
+
+    function handleAnswer(event) {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const questionIndex = Number(form.dataset.question);
+      const input = form.querySelector("input");
+      const error = form.querySelector(".form-error");
+      
+      const value = parseUserAnswer(input.value);
+
+      if (!Number.isFinite(value)) {
+        error.textContent = "יש להזין מספר שלם (למשל: 5, או -2).";
+        error.classList.remove("hidden");
+        input.focus();
+        return;
+      }
+
+      error.classList.add("hidden");
+      const exercise = exercises[questionIndex];
+      
+      // Use epsilon comparison to avoid float rounding errors
+      if (Math.abs(value - exercise.answer) < 0.0001) {
+        exercise.result = exercise.first ? "גביע" : "וי";
+        exercise.icon = exercise.first ? "🏆" : "✓";
+        awaitingQuestion = questionIndex;
+        document.getElementById("success-message").textContent = exercise.first
+          ? "מצוין! פתרת נכון כבר בניסיון הראשון."
+          : "כל הכבוד! תיקנת ופתרת נכון בניסיון השני.";
+        celebrate();
+        setModal("success-modal", true);
+      } else if (exercise.first) {
+        exercise.first = false;
+        awaitingQuestion = questionIndex;
+        setModal("retry-modal", true);
+      } else {
+        exercise.result = "איקס";
+        exercise.icon = "✕";
+        awaitingQuestion = questionIndex;
+        showSolution(questionIndex);
+      }
+    }
+
+    function advance() {
+      const next = awaitingQuestion + 1;
+      if (next < exercises.length) {
+        showQuestion(next);
+      } else {
+        buildSummary();
+        showView("summary");
+      }
+    }
+
+    function buildSummary() {
+      const finish = new Date();
+      document.getElementById("summary-name").textContent = studentName;
+      document.getElementById("summary-start").textContent = formatTime(startTime);
+      document.getElementById("summary-duration").textContent = formatDuration(finish - startTime);
+
+      let correctCount = 0;
+
+      const list = document.getElementById("result-list");
+      list.innerHTML = '';
+      exercises.forEach((exercise, index) => {
+        if (exercise.result !== "איקס") {
+          correctCount++;
+        }
+        
+        const row = document.createElement("div");
+        row.className = "summary-row";
+        const color = exercise.result === "גביע" ? "#f59e0b" : exercise.result === "וי" ? "#10b981" : "#f43f5e";
+        const bgClass = exercise.result === "גביע" ? "bg-amber-50" : exercise.result === "וי" ? "bg-emerald-50" : "bg-rose-50";
+        row.innerHTML = `
+          <div class="flex h-12 w-12 items-center justify-center rounded-full ${bgClass} shadow-sm">
+            <span style="font-size:1.5rem;color:${color};font-weight:800;text-align:center">${exercise.icon}</span>
+          </div>
+          <span class="text-lg font-bold text-slate-700">תרגיל ${index + 1}</span>
+        `;
+        list.appendChild(row);
+      });
+      
+      const summaryTitle = document.getElementById("summary-title");
+      if (correctCount <= 3) {
+        summaryTitle.textContent = "התרגול הסתיים";
+      } else {
+        summaryTitle.textContent = "כל הכבוד, סיימת!";
+      }
+      
+      const scoreContainer = document.getElementById("summary-score-container");
+      if (correctCount >= 5) {
+        scoreContainer.innerHTML = `<span class="text-emerald-600">פתרתם נכון ${correctCount} מתוך ${exercises.length} משוואות.</span> כל הכבוד!`;
+      } else {
+        scoreContainer.innerHTML = `<span class="text-rose-500">פתרתם נכון ${correctCount} מתוך ${exercises.length} משוואות.</span><br>כדאי לתרגל שוב.`;
+      }
+    }
+
+    // Event Listeners
+    document.getElementById("start-form").addEventListener("submit", event => {
+      event.preventDefault();
+      const nameInput = document.getElementById("student-name");
+      const error = document.getElementById("name-error");
+      const name = nameInput.value.trim();
+
+      if (!name) {
+        error.textContent = "לפני שמתחילים, יש לכתוב שם.";
+        error.classList.remove("hidden");
+        nameInput.focus();
+        return;
+      }
+
+      studentName = name;
+      startTime = new Date();
+      error.classList.add("hidden");
+      document.getElementById("student-greeting").textContent = `בהצלחה, ${studentName}!`;
+      showView("work");
+      showQuestion(0);
+    });
+
+    document.getElementById("success-next").addEventListener("click", () => {
+      setModal("success-modal", false);
+      advance();
+    });
+
+    document.getElementById("retry-return").addEventListener("click", () => {
+      setModal("retry-modal", false);
+      const input = document.querySelector(`#question-${awaitingQuestion} input`);
+      input.value = "";
+      input.focus();
+    });
+
+    document.getElementById("solution-next").addEventListener("click", () => {
+      setModal("solution-modal", false);
+      advance();
+    });
+
+    document.getElementById("restart-button").addEventListener("click", () => {
+      setupExercises();
+      renderQuestions();
+      renderKaTeX();
+      document.getElementById("student-name").value = "";
+      showView("start");
+      setTimeout(() => document.getElementById("student-name").focus(), 100);
+    });
+
+    // Initialize the application on load
+    document.addEventListener("DOMContentLoaded", initApp);
+
+  </script>
+</body>
+</html>
